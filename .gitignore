@@ -1,0 +1,37 @@
+# Python кэш
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Виртуальное окружение
+venv/
+.env/
+.venv/
+
+# Токены и секреты
+Token.py
+*.key
+*.pem
+
+# Медиа файлы (НЕ загружаем в Git)
+bot/frames/
+bot/uploads/
+*.jpg
+*.png
+*.mp4
+*.avi
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Логи
+*.log
