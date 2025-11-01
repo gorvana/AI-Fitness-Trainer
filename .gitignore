@@ -22,8 +22,8 @@ Token.py
 *.pem
 
 # Медиа файлы (НЕ загружаем в Git)
-bot/frames/
-bot/uploads/
+frames/
+uploads/
 *.jpg
 *.png
 *.mp4
