@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def save_frames(local_file_path: str):
     time.sleep(5)
     video_path = local_file_path                                                # Создаем папку (открываем)
-    video_filename = local_file_path[-31:-4]
+    video_filename = local_file_path[-31:-4]                                    # Плохое создание оригинального названия
 
     os.makedirs('frames', exist_ok=True)
     logger.info("📁 Папка 'frames' готова для сохранения кадров")
