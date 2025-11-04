@@ -9,6 +9,7 @@ import asyncio
 import concurrent.futures
 from task_manager import task_manager
 from utils.rate_limit import rate_limiter
+from utils.security import sanitize_filename
 
 video_processor_executor = concurrent.futures.ProcessPoolExecutor(max_workers=2)
 
@@ -52,12 +53,12 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
 
 
     try:
-        logger.info(f"Получено видео от пользователя {user_id}")            # Валидация видео
+        logger.info(f"Получено видео от пользователя {user_id}")                         # Валидация видео
 
-        if message.video.duration>180:
+        if message.video.duration>60:
             await message.answer(
                 "❌ Видео слишком длинное! Пожалуйста, отправьте видео "
-                "длительностью до 180 секунд."
+                "длительностью до 60 секунд."
             )
             return
         
@@ -71,12 +72,10 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
             processing_start_time=time.time()
         )
 
-
-        timestamp = int(time.time())                                                    # Сохранение видео на компьютер
-        user_id = message.from_user.id
+        timestamp = int(time.time())
         file_extension = get_file_extension(message.video.mime_type)
-        filename = f"video_{user_id}_{timestamp}{file_extension}"
-        local_file_path = f"uploads/videos/{filename}"     
+        original_filename = sanitize_filename(f"video_{user_id}_{timestamp}{file_extension}")
+        local_file_path = f"uploads/videos/{original_filename}"    
 
         await message.answer("💾 Сохраняю видео файл...")
         file_info = await message.bot.get_file(message.video.file_id)
