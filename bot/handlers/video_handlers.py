@@ -4,11 +4,12 @@ from states.analysis_states import AnalysisStates
 import logging
 import time
 import os
-from OpenCV import save_frames
+from pose.OpenCV import save_frames
 import asyncio
 import concurrent.futures
 from task_manager import task_manager
 from utils.rate_limit import rate_limiter
+from pose.pose_detection import process_frames_batch
 
 video_processor_executor = concurrent.futures.ProcessPoolExecutor(max_workers=2)
 
@@ -54,10 +55,10 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
     try:
         logger.info(f"Получено видео от пользователя {user_id}")            # Валидация видео
 
-        if message.video.duration>180:
+        if message.video.duration>60:
             await message.answer(
                 "❌ Видео слишком длинное! Пожалуйста, отправьте видео "
-                "длительностью до 180 секунд."
+                "длительностью до 60 секунд."
             )
             return
         
@@ -82,8 +83,6 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
         file_info = await message.bot.get_file(message.video.file_id)
         await message.bot.download_file(file_info.file_path, local_file_path)
         logger.info(f"Файл успешно скачан: {local_file_path}")
-
-        await asyncio.sleep(5)
         
 
         await state.set_state(AnalysisStates.processing_video)                          # Анализируем видео 
@@ -93,14 +92,44 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
             try:
                 # Запускаем обработку в отдельном процессе
                 loop = asyncio.get_event_loop()
-                await loop.run_in_executor(
+                frames = await loop.run_in_executor(
                     video_processor_executor, 
                     save_frames, 
                     local_file_path
                 )
                 
-                # Если дошли сюда - обработка завершена успешно
-                return True
+                if not frames:
+                    logger.error("Ошибка при сохранении кадров из видео.")
+                    return None
+
+                results = await loop.run_in_executor(
+                    video_processor_executor,
+                    process_frames_batch,
+                    frames
+                )
+
+                if not results:
+                    logger.error("Ошибка при обработке кадров видео.")
+                    return None
+                
+                def extract_min_knee(res_list):
+                    vals = []
+                    for r in res_list:
+                        ang = r.get("angles", {})
+                        for k in ("LEFT_KNEE_ANGLE", "RIGHT_KNEE_ANGLE"):
+                            v = ang.get(k)
+                            if isinstance(v, (int, float)):
+                                vals.append(v)
+                    return min(vals) if vals else None
+                
+                min_knee_angle = extract_min_knee(results)
+                summary = {
+                    "frames_count": len(frames),
+                    "processed_count": len(results),
+                    "min_knee_angle": min_knee_angle
+                }
+                return summary
+                
             except Exception as e:
                 logger.error(f"Ошибка в задаче обработки: {e}")
                 return False
@@ -111,24 +140,23 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
 
         
         try:                                                                            # Ждем завершения задачи (с возможностью отмены)
-            success = await video_task
+            summary = await video_task
             # Если задача завершилась (даже с ошибкой)
 
-            if success:
-                analysis_result = {
-                    'technique_score': 85,
-                    'amplitude': 'Хорошо',
-                    'speed': 'Нормальная', 
-                    'recommendation': 'Следите за положением спины'
-                }
+            if summary:
+                frames_count = summary["frames_count"]
+                processed_count = summary["processed_count"]
+                min_knee = summary["min_knee_angle"]
+                text_min_knee = f"{int(min_knee)}°" if isinstance(min_knee, (int, float)) else "—"
                 
+                user_data = await state.get_data()
+
                 await message.answer(
-                    f"✅ Видео обработано!\n"
-                    f"📊 Результаты:\n"
-                    f"• Техника выполнения: {analysis_result['technique_score']}%\n"
-                    f"• Амплитуда движения: {analysis_result['amplitude']}\n"
-                    f"• Скорость выполнения: {analysis_result['speed']}\n" 
-                    f"• Рекомендации: {analysis_result['recommendation']}"
+                    f"✅ Видео обработано за {time.time()-user_data.get('processing_start_time', 0):.2f} секунд!\n"
+                    f"📸 Кадров сохранено: {frames_count}\n"
+                    f"🧠 Кадров проанализировано: {processed_count}\n"
+                    f"🦵 Минимальный угол в колене: {text_min_knee}\n\n"
+                    "Совет: старайтесь держать корпус стабильно и колени направлять по носкам."
                 )
             else:
                 await message.answer("❌ Ошибка при обработке видео")

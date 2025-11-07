@@ -3,14 +3,12 @@ import os
 from tqdm import tqdm
 import glob
 import logging
-import time
 
 logger = logging.getLogger(__name__)
 
 def save_frames(local_file_path: str):
-    time.sleep(5)
     video_path = local_file_path                                                # Создаем папку (открываем)
-    video_filename = local_file_path[-31:-4]
+    video_filename = os.path.splitext(os.path.basename(local_file_path))[0]
 
     os.makedirs('frames', exist_ok=True)
     logger.info("📁 Папка 'frames' готова для сохранения кадров")
@@ -39,7 +37,8 @@ def save_frames(local_file_path: str):
 
     frame_count = 0
     saved_count = 0
-    every_n_frame = 30
+    every_n_frame = 5
+    saved_paths = []
 
     progress_bar = tqdm(total=total_frames, desc="Обработка видео")             # Извлекаем кадры
 
@@ -60,13 +59,11 @@ def save_frames(local_file_path: str):
 
             if success:
                 saved_count+=1
+                saved_paths.append(filepath)
             else:
                 logger.error(f"❌ Ошибка сохранения кадра {saved_count}")
 
     progress_bar.close()
-    cap.release()
-
-    # ОСВОБОЖДАЕМ ВИДЕОПЛЕЕР (обязательно!)
     cap.release()
 
     logger.info("✅ Обработка завершена!")
@@ -75,3 +72,5 @@ def save_frames(local_file_path: str):
     logger.info(f"   Сохранено кадров: {saved_count}")
     logger.info(f"   Кадры сохранены в папку: frames/")
 
+    return saved_paths
+    
