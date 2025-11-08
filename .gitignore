@@ -28,6 +28,7 @@ uploads/
 *.png
 *.mp4
 *.avi
+tasks.txt
 
 # Системные файлы
 .DS_Store

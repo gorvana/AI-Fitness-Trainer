@@ -1,3 +1,4 @@
+import glob
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from states.analysis_states import AnalysisStates
@@ -72,6 +73,15 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
             processing_start_time=time.time()
         )
 
+        old_frames = glob.glob(os.path.join('uploads/videos', '*'))                 # Удаляем старые видео
+        deleted_count = 0
+        for file_path in old_frames:
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    deleted_count += 1
+            except Exception as e:
+                logger.error(f"❌ Ошибка при удалении {file_path}: {e}")
 
         timestamp = int(time.time())                                                    # Сохранение видео на компьютер
         user_id = message.from_user.id

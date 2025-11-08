@@ -17,16 +17,6 @@ async def process_analyz(message: types.Message, state: FSMContext):
         )
         return
     
-    user_id=message.from_user.id
-    is_limited, remaining, wait_time = await rate_limiter.check_rate_limit(user_id)  
-    if is_limited:
-        await message.answer(
-            "❌ Слишком много запросов!\n"
-            f"Доступно запросов: {remaining}/3\n"
-            f"Подождите {int(wait_time)} секунд"
-        )
-        return
-    
     await state.set_state(AnalysisStates.waiting_for_video)
     await message.answer(
         "Отправь мне видео с выполнением упражнения.\n"
