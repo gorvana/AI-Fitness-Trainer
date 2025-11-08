@@ -1,16 +1,18 @@
 import glob
-from aiogram import Router, F, types
-from aiogram.fsm.context import FSMContext
-from states.analysis_states import AnalysisStates
+import os
 import logging
 import time
-import os
-from pose.OpenCV import save_frames
 import asyncio
 import concurrent.futures
+import cv2
+from aiogram import Router, F, types
+from aiogram.fsm.context import FSMContext
+from aiogram.types import FSInputFile
+from states.analysis_states import AnalysisStates
 from task_manager import task_manager
 from utils.rate_limit import rate_limiter
-from pose.pose_detection import process_frames_batch
+from pose.OpenCV import save_frames
+from pose.pose_detection import process_frames_batch, draw_squat_overlay
 
 video_processor_executor = concurrent.futures.ProcessPoolExecutor(max_workers=2)
 
@@ -121,22 +123,54 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
                 if not results:
                     logger.error("Ошибка при обработке кадров видео.")
                     return None
-                
-                def extract_min_knee(res_list):
-                    vals = []
-                    for r in res_list:
-                        ang = r.get("angles", {})
-                        for k in ("LEFT_KNEE_ANGLE", "RIGHT_KNEE_ANGLE"):
-                            v = ang.get(k)
-                            if isinstance(v, (int, float)):
-                                vals.append(v)
-                    return min(vals) if vals else None
-                
-                min_knee_angle = extract_min_knee(results)
+                # Найти кадр с минимальным углом колена и подготовить аннотированное изображение
+                min_knee_angle = None
+                min_result = None
+                for r in results:
+                    ang = r.get("angles", {})
+                    # Берём минимум между левым и правым коленом для данного кадра
+                    per_frame_vals = [ang.get("LEFT_KNEE_ANGLE"), ang.get("RIGHT_KNEE_ANGLE")]
+                    per_frame_vals = [v for v in per_frame_vals if isinstance(v, (float, float))]
+                    if not per_frame_vals:
+                        continue
+                    local_min = min(per_frame_vals)
+                    if min_knee_angle is None or local_min < min_knee_angle:
+                        min_knee_angle = local_min
+                        min_result = r
+
+                min_knee_frame_path = None
+                min_knee_annotated_path = None
+
+                if min_result and isinstance(min_knee_angle, (float)):
+                    try:
+                        img_path = min_result.get("image_path")
+                        if img_path and os.path.isfile(img_path):
+                            image = cv2.imread(img_path)
+                            if image is not None:
+                                # Рисуем линии и подписи углов
+                                draw_squat_overlay(
+                                    image,
+                                    min_result.get("keypoints_pixels", {}),
+                                    min_result.get("angles", {})
+                                )
+                                base = os.path.splitext(os.path.basename(img_path))[0]
+                                min_knee_frame_path = img_path
+                                min_knee_annotated_path = os.path.join(
+                                    "frames", f"{base}_annotated.jpg"
+                                )
+                                # Сохраняем аннотированный кадр
+                                cv2.imwrite(min_knee_annotated_path, image)
+                        else:
+                            logger.warning("Путь к изображению минимального угла некорректен или файл не найден.")
+                    except Exception as e:
+                        logger.error(f"Ошибка при подготовке аннотированного кадра: {e}")
+                        min_knee_annotated_path = None
                 summary = {
                     "frames_count": len(frames),
                     "processed_count": len(results),
-                    "min_knee_angle": min_knee_angle
+                    "min_knee_angle": min_knee_angle,
+                    "min_knee_frame_path": min_knee_frame_path,
+                    "min_knee_annotated_path": min_knee_annotated_path,
                 }
                 return summary
                 
@@ -162,12 +196,26 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
                 user_data = await state.get_data()
 
                 await message.answer(
-                    f"✅ Видео обработано за {time.time()-user_data.get('processing_start_time', 0):.2f} секунд!\n"
-                    f"📸 Кадров сохранено: {frames_count}\n"
-                    f"🧠 Кадров проанализировано: {processed_count}\n"
-                    f"🦵 Минимальный угол в колене: {text_min_knee}\n\n"
-                    "Совет: старайтесь держать корпус стабильно и колени направлять по носкам."
+                    (
+                        f"✅ Видео обработано за {time.time()-user_data.get('processing_start_time', 0):.2f} секунд!\n"
+                        f"📸 Кадров сохранено: {frames_count}\n"
+                        f"🧠 Кадров проанализировано: {processed_count}\n"
+                        f"🦵 Минимальный угол в колене: {text_min_knee}\n\n"
+                        "Совет: старайтесь держать корпус стабильно и колени направлять по носкам."
+                    )
                 )
+
+                # Отправляем пользователю кадр с минимальным углом колена (с разметкой)
+                annotated_path = summary.get("min_knee_annotated_path")
+                if annotated_path and os.path.isfile(annotated_path):
+                    try:
+                        photo = FSInputFile(annotated_path)
+                        await message.answer_photo(
+                            photo=photo,
+                            caption=f"Кадр с минимальным углом колена: {text_min_knee}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Не удалось отправить аннотированный кадр: {e}")
             else:
                 await message.answer("❌ Ошибка при обработке видео")
                 
