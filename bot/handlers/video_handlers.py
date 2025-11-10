@@ -13,6 +13,7 @@ from task_manager import task_manager
 from utils.rate_limit import rate_limiter
 from pose.OpenCV import save_frames
 from pose.pose_detection import process_frames_batch, draw_squat_overlay
+from utils.dataset_writer import append_video_and_frames
 
 video_processor_executor = concurrent.futures.ProcessPoolExecutor(max_workers=2)
 
@@ -56,7 +57,7 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
 
 
     try:
-        logger.info(f"Получено видео от пользователя {user_id}")            # Валидация видео
+        logger.info(f"Получено видео от пользователя {user_id}")                        # Валидация видео
 
         if message.video.duration>60:
             await message.answer(
@@ -64,8 +65,8 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
                 "длительностью до 60 секунд."
             )
             return
-        
-        if message.video.file_size>(20*1024*1024):
+
+        if message.video.file_size > (20 * 1024 * 1024):
             await message.answer(
                 "❌ Файл слишком большой! Максимальный размер - 20MB."
             )
@@ -171,7 +172,10 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
                     "min_knee_angle": min_knee_angle,
                     "min_knee_frame_path": min_knee_frame_path,
                     "min_knee_annotated_path": min_knee_annotated_path,
+                    "results": results
                 }
+
+
                 return summary
                 
             except Exception as e:
@@ -205,6 +209,8 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
                     )
                 )
 
+                print(summary["results"])
+
                 # Отправляем пользователю кадр с минимальным углом колена (с разметкой)
                 annotated_path = summary.get("min_knee_annotated_path")
                 if annotated_path and os.path.isfile(annotated_path):
@@ -216,6 +222,18 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
                         )
                     except Exception as e:
                         logger.error(f"Не удалось отправить аннотированный кадр: {e}")
+
+                # Записываем результаты в датасет (JSONL append)
+                try:
+                    videos_jsonl, frames_jsonl = append_video_and_frames(summary, local_file_path)
+                    await message.answer(
+                        "📦 Данные добавлены в датасет.\n"
+                        f"Видео-агрегаты: {videos_jsonl}\n"
+                        f"Кадры: {frames_jsonl}"
+                    )
+                except Exception as e:
+                    logger.error(f"Ошибка записи датасета: {e}")
+                    await message.answer("⚠️ Не удалось сохранить данные для обучения.")
             else:
                 await message.answer("❌ Ошибка при обработке видео")
                 

@@ -74,7 +74,7 @@ def draw_squat_overlay(
     put_angle("RIGHT_HIP_ANGLE", "RIGHT_HIP", dy=-24)
 
 
-def process_single_frame(image_path, show) -> Optional[Dict]: 
+def process_single_frame(image_path, show: bool = False) -> Optional[Dict]: 
     mp_pose = mp.solutions.pose
     mp_drawing = mp.solutions.drawing_utils
     mp_drawing_styles = mp.solutions.drawing_styles
@@ -181,7 +181,7 @@ def process_frames_batch(image_paths: list[str], show: bool = False) -> list[Opt
     return results
 
 if __name__ == "__main__":
-    data = process_single_frame(DEFAULT_IMAGE_PATH)
+    data = process_single_frame(DEFAULT_IMAGE_PATH, show=True)
     if data:
         print(data)
     else:
