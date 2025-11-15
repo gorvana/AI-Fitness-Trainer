@@ -24,6 +24,7 @@ Token.py
 # Медиа файлы (НЕ загружаем в Git)
 frames/
 uploads/
+dataset/    
 *.jpg
 *.png
 *.mp4

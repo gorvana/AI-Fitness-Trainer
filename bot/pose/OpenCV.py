@@ -30,7 +30,7 @@ def save_frames(local_file_path: str):
     cap = cv2.VideoCapture(video_path)                                          # Начинаем обработку видео
     if not cap.isOpened():
         logger.error(f"❌ Ошибка: Не могу открыть видеофайл: {video_path}")
-        exit()  # завершаем программу если ошибка
+        exit()  
     logger.info("✅ Видеофайл успешно открыт!")
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
