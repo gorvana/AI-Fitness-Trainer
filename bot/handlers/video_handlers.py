@@ -27,7 +27,10 @@ def get_file_extension(mime_type: str) -> str:                                  
             'video/mpeg': '.mpeg',
             'video/webm': '.webm'
         }
-        return dict_type.get(mime_type, '.mp4')
+        if mime_type not in dict_type:
+            raise ValueError(f"Unsupported MIME type: {mime_type}")
+        return dict_type[mime_type]
+    
 
 
 logger = logging.getLogger(__name__)
