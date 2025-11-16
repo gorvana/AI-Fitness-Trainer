@@ -11,9 +11,10 @@ from aiogram.types import FSInputFile
 from states.analysis_states import AnalysisStates
 from task_manager import task_manager
 from utils.rate_limit import rate_limiter
-from pose.OpenCV import save_frames
-from pose.pose_detection import process_frames_batch, draw_squat_overlay
+from utils.OpenCV import save_frames
+from utils.pose_detection import process_frames_batch, draw_squat_overlay
 from utils.dataset_writer import write_sequence_record, ERROR_LABELS_ORDER
+from utils.dataset_writer import _canonicalize_error_label
 
 video_processor_executor = concurrent.futures.ProcessPoolExecutor(max_workers=2)
 
@@ -205,7 +206,7 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
             summary = await video_task
             # Если задача завершилась (даже с ошибкой)
 
-            if summary:                                                                     # Отправляем результаты обработки пользователю и записываем в датасет
+            if summary:                                                                     # Отправляем результаты обработки пользователю
                 frames_count = summary["frames_count"]
                 processed_count = summary["processed_count"]
                 min_knee = summary["min_knee_angle"]
@@ -242,11 +243,18 @@ async def handle_exercise_video(message: types.Message, state: FSMContext):
                 
                 try:                                                                        # Запись обучающей выборки (Keras-ready)
                     err_label = (user_data.get("error_label") or "").strip()
-                    seq_path = write_sequence_record(summary, local_file_path, err_label)
-                    await message.answer(
-                        "📦 Обучающий пример добавлен в датасет.\n"
-                        f"Файл последовательностей: {seq_path}"
-                    )
+                    if _canonicalize_error_label(err_label) is None:
+                        logger.error(f"Некорректная метка ошибки: {err_label}")
+                        await message.answer("⚠️ Некорректная метка ошибки для разметки датасета. Пример корректных меток: knees_in, shallow_depth, heels_off, forward_lean.")
+                    else:
+                        await message.answer(
+                            f"{_canonicalize_error_label(err_label)['label']} Записываю обучающий пример в датасет..."
+                        )
+                        seq_path = write_sequence_record(summary, local_file_path, err_label)
+                        await message.answer(
+                            "📦 Обучающий пример добавлен в датасет.\n"
+                            f"Файл последовательностей: {seq_path}"
+                        )
                 except Exception as e:
                     logger.error(f"Ошибка записи датасета: {e}")
                     await message.answer("⚠️ Не удалось сохранить данные для обучения.")

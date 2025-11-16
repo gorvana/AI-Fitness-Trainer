@@ -113,7 +113,9 @@ def _canonicalize_error_label(label: Optional[str]) -> Dict[str, Any]:
     labels = {k: False for k in ERROR_LABELS_ORDER}
     if canonical in labels:
         labels[canonical] = True
-
+    else:
+        return None
+    
     return {"label": label_raw or None, "labels": labels}
 
 
