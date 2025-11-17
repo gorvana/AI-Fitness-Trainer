@@ -3,8 +3,7 @@ from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from keyboards.reply import get_main_reply_keyboard
 from states.analysis_states import AnalysisStates
-from task_manager import task_manager
-from utils.rate_limit import rate_limiter
+from utils.task_manager import task_manager
 
 text_router = Router()
 

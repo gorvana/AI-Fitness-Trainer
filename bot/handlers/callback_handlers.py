@@ -2,8 +2,7 @@ from aiogram import Router, types, F
 from keyboards.reply import get_main_reply_keyboard
 from aiogram.fsm.context import FSMContext
 from states.analysis_states import AnalysisStates
-from task_manager import task_manager
-from utils.rate_limit import rate_limiter
+from utils.task_manager import task_manager
 
 callback_router = Router()
 
@@ -16,16 +15,7 @@ async def process_analyz(callback_query: types.CallbackQuery, state: FSMContext)
             "Дождитесь ее завершения или отмените командой /cancel."
         )
         return
-    
-    user_id=callback_query.from_user.id
-    is_limited, remaining, wait_time = await rate_limiter.check_rate_limit(user_id)   
-    if is_limited:
-        await callback_query.message.answer(
-            "❌ Слишком много запросов!\n"
-            f"Доступно запросов: {remaining}/3\n"
-            f"Подождите {int(wait_time)} секунд перед отправкой следующего видео."
-        )
-        return
+
     
     await state.set_state(AnalysisStates.waiting_for_video)
     await callback_query.message.answer(

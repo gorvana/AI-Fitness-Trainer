@@ -9,12 +9,12 @@ logger = logging.getLogger(__name__)
 DEFAULT_IMAGE_PATH = "frames/1.jpg"
 
     
-def landmark_to_pixel(landmark, image_width:int, image_height:int)->tuple[int, int]:
+def landmark_to_pixel(landmark, image_width:int, image_height:int)->tuple[int, int]:                # Функция для преобразования нормализованных координат в пиксели
     x_px = min(int(landmark.x * image_width), image_width - 1)
     y_px = min(int(landmark.y * image_height), image_height - 1)
     return x_px, y_px
 
-def angle_three_points(a: tuple[int, int], b: tuple[int, int], c: tuple[int, int]) -> float:
+def angle_three_points(a: tuple[int, int], b: tuple[int, int], c: tuple[int, int]) -> float:        # Функция для вычисление угла между тремя точками
     ax, ay = a[0] - b[0], a[1] - b[1]
     cx, cy = c[0] - b[0], c[1] - b[1]
     mag_a = math.hypot(ax, ay)
@@ -25,7 +25,7 @@ def angle_three_points(a: tuple[int, int], b: tuple[int, int], c: tuple[int, int
     cos_angle = max(-1.0, min(1.0, dot / (mag_a * mag_c)))
     return math.degrees(math.acos(cos_angle))
 
-def draw_squat_overlay(
+def draw_squat_overlay(                                                                             # Функция для  риспования линий, подписи ключевых точек и углов на изображении
         image,
         keypoints: Dict[str, tuple[int, int]],
         angles: Dict[str, float]
@@ -36,12 +36,12 @@ def draw_squat_overlay(
     thickness = 2
     font = cv2.FONT_HERSHEY_SIMPLEX
 
-    for name, (x,y) in keypoints.items():
-        cv2.circle(image, (x,y), 6, circle_color, -1)
+    for name, (x,y) in keypoints.items():                                                               # Круги и подписи ключевых точек
+        cv2.circle(image, (x,y), 6, circle_color, 1)
         cv2.putText(image, name, (x+6, y-6), font, 0.45, text_color, 1, cv2.LINE_AA)
     
-    def line(a: str, b: str):
-        if a in keypoints and b in keypoints:   
+    def line(a: str, b: str):                                                                           # Линии между ключевыми точками                          
+        if a in keypoints and b in keypoints:                                                          
             cv2.line(image, keypoints[a], keypoints[b], line_color, thickness)
 
     line("LEFT_SHOULDER", "LEFT_HIP")
@@ -54,8 +54,8 @@ def draw_squat_overlay(
     line("RIGHT_KNEE", "RIGHT_ANKLE")
 
     # Подписи углов
-    def put_angle(key_angle: str, point_name: str, dy: int = 20):
-        if key_angle in angles and point_name in keypoints:
+    def put_angle(key_angle: str, point_name: str, dy: int = 20):                                       # Подписи углов рядом с ключевыми точками
+        if key_angle in angles and point_name in keypoints: 
             x, y = keypoints[point_name]
             cv2.putText(
                 image,
@@ -73,20 +73,19 @@ def draw_squat_overlay(
     put_angle("LEFT_HIP_ANGLE", "LEFT_HIP", dy=-24)
     put_angle("RIGHT_HIP_ANGLE", "RIGHT_HIP", dy=-24)
 
-
-def process_single_frame(image_path, show: bool = False) -> Optional[Dict]: 
+def process_single_frame(image_path, show: bool = False) -> Optional[Dict]:                         # Функция для обработки одного кадра и извлечения ключевых точек и углов
     mp_pose = mp.solutions.pose
     mp_drawing = mp.solutions.drawing_utils
     mp_drawing_styles = mp.solutions.drawing_styles
 
-    with mp_pose.Pose(
+    with mp_pose.Pose(                                                                                  # Инициализация модели позы MediaPipe
         static_image_mode=True,
         model_complexity=2,
         enable_segmentation=False,
         min_detection_confidence=0.5
     ) as pose:
         
-        image = cv2.imread(image_path)
+        image = cv2.imread(image_path)                                                                  # Чтение изображения, обработка модели позы                           
         if image is None:
             logger.error(f"Image at path {image_path} could not be loaded.")
             return None
@@ -103,15 +102,15 @@ def process_single_frame(image_path, show: bool = False) -> Optional[Dict]:
             cv2.destroyAllWindows()
             return None
 
-        annotated_image = image.copy()
-        mp_drawing.draw_landmarks(
+        annotated_image = image.copy()                                                                  # Инициализация аннотированного изображения             
+        mp_drawing.draw_landmarks(                                                                      # Инициализация модели для создания аннотированного изображения      
             annotated_image,
             results.pose_landmarks,
             mp_pose.POSE_CONNECTIONS,
             landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style()
         )
 
-        needed = [
+        needed = [                                                                                      # Ключевые точки, необходимые для анализа                       
             "NOSE",
             "LEFT_SHOULDER", "RIGHT_SHOULDER",
             "LEFT_HIP", "RIGHT_HIP",
@@ -119,7 +118,7 @@ def process_single_frame(image_path, show: bool = False) -> Optional[Dict]:
             "LEFT_ANKLE", "RIGHT_ANKLE"
         ]
 
-        lm = results.pose_landmarks.landmark
+        lm = results.pose_landmarks.landmark                                                            # Извлечение ключевых точек и вычисление углов     
         keypoints_pixels: Dict[str, tuple[int, int]] = {}
         keypoints_normalized: Dict[str, tuple[float, float]] = {}
 
@@ -161,7 +160,7 @@ def process_single_frame(image_path, show: bool = False) -> Optional[Dict]:
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-        payload = {
+        payload = {                                                                                 # Подготовка результата обработки кадра
             "image_path": image_path,
             "size": (image_width, image_height),
             "keypoints_pixels": keypoints_pixels,

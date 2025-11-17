@@ -84,7 +84,7 @@ def _frame_feature_vector(frame: Dict[str, Any]) -> List[float]:
 def _canonicalize_error_label(label: Optional[str]) -> Dict[str, Any]:
     """
     Convert free-form label (caption) into a multi-label dict + original string.
-    Unrecognized -> all False.
+    Accepts multiple labels separated by comma/semicolon/pipe. Unrecognized -> return None.
     """
     label_raw = (label or "").strip().lower()
 
@@ -107,15 +107,32 @@ def _canonicalize_error_label(label: Optional[str]) -> Dict[str, Any]:
         "forward_lean": "forward_lean",
         "наклон вперед": "forward_lean",
         "наклон вперёд": "forward_lean",
+        "наклон вперед": "forward_lean",
     }
 
-    canonical = synonyms.get(label_raw)
+    # Split possible multi-label captions (comma, semicolon, pipe)
+    tokens = [t.strip() for t in re.split(r"[,;|]", label_raw) if t.strip()]
+
     labels = {k: False for k in ERROR_LABELS_ORDER}
-    if canonical in labels:
-        labels[canonical] = True
-    else:
+    matched_any = False
+    for tok in tokens:
+        # try direct mapping first
+        canonical = synonyms.get(tok)
+        if canonical and canonical in labels:
+            labels[canonical] = True
+            matched_any = True
+            continue
+
+        # try to match by substring (e.g. user wrote 'knees' or russian short)
+        for s, canon_key in synonyms.items():
+            if s in tok and canon_key in labels:
+                labels[canon_key] = True
+                matched_any = True
+                break
+
+    if not matched_any:
         return None
-    
+
     return {"label": label_raw or None, "labels": labels}
 
 
@@ -166,6 +183,9 @@ def write_sequence_record(
         })
 
     canon = _canonicalize_error_label(error_label)
+    if canon is None:
+        # defensive: accept missing/unknown label by writing all-False labels
+        canon = {"label": None, "labels": {k: False for k in ERROR_LABELS_ORDER}}
 
     created_at = datetime.now(timezone.utc).isoformat()
     record = {
